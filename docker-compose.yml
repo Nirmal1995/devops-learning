@@ -1,0 +1,73 @@
+# Docker Compose for local development.
+#
+# Three services:
+#   db       — Postgres 16 with a named volume for persistence
+#   backend  — FastAPI with hot reload via bind mount
+#   frontend — Vite dev server with hot reload via bind mount
+#
+# Network: compose creates a default bridge network. Services reach each other
+# by service name (e.g., backend connects to "db:5432"). This is the same DNS
+# model you'll see in Kubernetes — services find each other by name.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app}
+      POSTGRES_DB: ${POSTGRES_DB:-app}
+    ports:
+      # Exposed on host for tools like psql/DBeaver. Remove in prod.
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      # pg_isready exits 0 when Postgres accepts connections.
+      # `depends_on` below waits for this healthcheck before starting backend.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-app} -d ${POSTGRES_DB:-app}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./app/backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-app}@db:5432/${POSTGRES_DB:-app}
+      CORS_ORIGINS_RAW: "http://localhost:5173,http://localhost:3000"
+    ports:
+      - "8000:8000"
+    volumes:
+      # Bind mount source for hot reload. Production images don't do this.
+      - ./app/backend/src:/app/src
+      - ./app/backend/migrations:/app/migrations
+    # Override the Dockerfile CMD to enable --reload for dev.
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --app-dir src
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    # For dev we don't use the nginx prod stage — we run `vite dev` directly
+    # from a node image with a bind mount. Much faster iteration loop.
+    image: node:20-alpine
+    restart: unless-stopped
+    working_dir: /app
+    environment:
+      VITE_API_URL: http://localhost:8000
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./app/frontend:/app
+      # Anonymous volume for node_modules: keeps host node_modules separate
+      # from container's (important because host might be a different OS/arch).
+      - /app/node_modules
+    command: sh -c "npm install && npm run dev"
+    depends_on:
+      - backend
+
+volumes:
+  db_data:
