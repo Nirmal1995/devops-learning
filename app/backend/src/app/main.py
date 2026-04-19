@@ -53,3 +53,4 @@ async def ready():
         return {"status": "ready", "db": "ok"}
     except Exception as e:
         return {"status": "not_ready", "db": f"error: {type(e).__name__}"}
+# test comment
