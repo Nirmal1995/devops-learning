@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: app
+data:
+  DB_HOST: "10.169.0.5"
+  DB_PORT: "5432"
+  DB_NAME: "app"
+  DB_USER: "app"
+  CORS_ORIGINS_RAW: "*"

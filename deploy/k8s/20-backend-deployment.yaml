@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: app
+  labels:
+    app: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+      - name: backend
+        image: europe-west1-docker.pkg.dev/devops-learning-1970/devops-learning/backend:0.1.0
+        ports:
+        - containerPort: 8000
+          name: http
+        env:
+        # Define components FIRST so $(VAR) substitution below can see them.
+        - name: DB_HOST
+          valueFrom: { configMapKeyRef: { name: backend-config, key: DB_HOST } }
+        - name: DB_PORT
+          valueFrom: { configMapKeyRef: { name: backend-config, key: DB_PORT } }
+        - name: DB_NAME
+          valueFrom: { configMapKeyRef: { name: backend-config, key: DB_NAME } }
+        - name: DB_USER
+          valueFrom: { configMapKeyRef: { name: backend-config, key: DB_USER } }
+        - name: DB_PASSWORD
+          valueFrom: { secretKeyRef: { name: backend-secrets, key: DB_PASSWORD } }
+        # DATABASE_URL references the above — order matters.
+        - name: DATABASE_URL
+          value: "postgresql+asyncpg://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)"
+        - name: CORS_ORIGINS_RAW
+          valueFrom: { configMapKeyRef: { name: backend-config, key: CORS_ORIGINS_RAW } }
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 15
+          periodSeconds: 20
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          failureThreshold: 3
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi

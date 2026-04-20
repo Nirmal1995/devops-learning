@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: app
+  labels:
+    # Autopilot applies pod security standards based on these labels.
+    # "baseline" = reasonable defaults, blocks privileged containers.
+    pod-security.kubernetes.io/enforce: baseline

@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: app
+spec:
+  type: ClusterIP               # only reachable from inside the cluster (not from internet)
+  selector:
+    app: backend                # routes to pods with this label
+  ports:
+  - name: http
+    port: 80                    # service port (other pods call http://backend/)
+    targetPort: 8000            # pod port (what the container listens on)
